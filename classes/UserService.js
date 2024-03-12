@@ -15,6 +15,10 @@ module.exports = class UserService {
   }
 
   static isUserExist(id) {
+    if (!fs.existsSync(`./data`)) {
+      fs.mkdirSync("./data");
+    }
+
     return fs.existsSync(`./data/${id}.json`);
   }
 
