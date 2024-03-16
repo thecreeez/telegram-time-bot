@@ -12,6 +12,10 @@ module.exports = class ScheduleService {
       return false;
     }
 
+    if (args.indexOf("") !== -1) {
+      return false;
+    }
+
     if (!DoingTypes.getByText(args[1])) {
       return false;
     }
