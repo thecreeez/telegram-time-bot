@@ -1,7 +1,5 @@
 const TelegramBot = require('node-telegram-bot-api');
 const UserService = require("./classes/UserService.js");
-const ScheduleService = require("./classes/ScheduleService.js");
-const DoingTypes = require('./classes/DoingTypes.js');
 const CommandHandler = require("./classes/CommandHandler.js");
 
 require("dotenv").config();
@@ -23,25 +21,9 @@ async function start() {
 
     logMessage(chatId, "user", msg.text);
     let user = UserService.getOrCreate(msg);
+    user.__bot = bot;
 
-    let result = ScheduleService.parse(user, msg.text.toLowerCase());
-    if (result) {
-      UserService.save(user);
-      sendMessage(chatId, `Время успешно отмечено. Спасибо! ${result}`);
-      return;
-    }
-
-    result = await CommandHandler.handle(user, msg);
-    if (result) {
-      return;
-    }
-
-    let response = message + "";
-    DoingTypes.getAll().forEach((type) => {
-      response += `* ${type[1][1]}\n`;
-    })
-
-    sendMessage(chatId, response);
+    await CommandHandler.handle(user, msg);
   });
 
   function sendMessage(chatId, message) {

@@ -1,4 +1,5 @@
 const fs = require("fs");
+const Command = require("./Command");
 
 module.exports = class CommandHandler {
   static PATH_TO_COMMANDS = "./commands/"
@@ -29,6 +30,8 @@ module.exports = class CommandHandler {
 
             this.commands[id] = m.default;
           })
+
+
         })
       }
     }
@@ -36,14 +39,16 @@ module.exports = class CommandHandler {
 
   static async handle(user, msg) {
     let args = msg.text.split(" ")
-    let command = args.shift();
+    let command = args.shift().toLowerCase();
 
-    if (!this.commands[command]) {
-      return false;
+    if (this.commands[command]) {
+      return await this.commands[command].startRun(user, msg, args);
     }
 
-    await this.commands[command].startRun(user, msg, args);
-    return true;
+    if (this.commands[Command.DEFAULT]) {
+      // Возвращаем в аргументы первое значение тк оно не является командой
+      return await this.commands[Command.DEFAULT].startRun(user, msg, [command, ...args]);
+    }
   }
 
   static getBot() {

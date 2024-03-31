@@ -4,7 +4,7 @@ module.exports = class ScheduleService {
   static parse(user, message) {
     let args = message.split(" ");
 
-    if (args < 3) {
+    if (args.length < 3) {
       return false;
     }
 
@@ -33,6 +33,38 @@ module.exports = class ScheduleService {
   }
 
   static _addTime(user, time, doingType, doingName) {
+    this.checkAndCreateTodayInUser(user);
+    let todayId = this.getTodayId();
+
+    user.schedule[todayId].doing.push({
+      time,
+      doingType,
+      doingName,
+    })
+  }
+
+  static setTodayVibe(user, vibe) {
+    this.checkAndCreateTodayInUser(user);
+    let todayId = this.getTodayId();
+
+    user.schedule[todayId].vibe = vibe;
+  }
+
+  static checkAndCreateTodayInUser(user) {
+    let todayId = this.getTodayId();
+
+    if (!user.schedule[todayId]) {
+      user.schedule[todayId] = {
+        doing: [],
+      };
+    }
+
+    if (!user.schedule[todayId].doing) {
+      user.schedule[todayId].doing = [];
+    }
+  }
+
+  static getTodayId() {
     let date = new Date();
 
     let year = date.getFullYear();
@@ -40,16 +72,6 @@ module.exports = class ScheduleService {
     month = month < 10 ? "0" + month : month;
     let day = date.getDate() < 10 ? "0" + date.getDate() : date.getDate();
 
-    if (!user.schedule[`${day}.${month}.${year}`]) {
-      user.schedule[`${day}.${month}.${year}`] = {
-        doing: [],
-      };
-    }
-
-    user.schedule[`${day}.${month}.${year}`].doing.push({
-      time,
-      doingType,
-      doingName,
-    })
+    return `${day}.${month}.${year}`;
   }
 }

@@ -1,13 +1,23 @@
 const { createCanvas, loadImage } = require('canvas');
 const fs = require("fs");
 const DoingTypes = require('./DoingTypes');
+const ScheduleService = require('./ScheduleService');
 
 module.exports = class ImageService {
-  static SIZE = [200 * 2 + 30, 700]
+  static SIZE = [300 * 2 + 30, 300 * 2 + 15 + 300]
 
-  static createStatsForUser(user, onCreated = null) {
+  static createStatsForUser(user, type, onCreated = null) {
     const canvas = createCanvas(ImageService.SIZE[0], ImageService.SIZE[1]);
-    ImageService._fillImageWithData(user, canvas);
+
+    if (!ImageService[`${type}_fill`]) {
+      type = "default";
+    }
+
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = `rgb(59,58,58)`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ImageService[`${type}_fill`](user, canvas);
 
     if (!fs.existsSync('images')) {
       fs.mkdirSync("images");
@@ -22,48 +32,142 @@ module.exports = class ImageService {
     out.on('finish', () => {
       if (onCreated) {
         onCreated(user, path);
-        setTimeout(() => fs.unlinkSync(path), 500);
       }
     })
 
     return path;
   }
-  
-  static _fillImageWithData(user, canvas) {
+
+  static default_fill(user, canvas) {
     const ctx = canvas.getContext('2d');
-
-    ctx.fillStyle = `rgb(59,58,58)`;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
     this._drawHeader(user, ctx);
-    this._drawLifeBalanceDiagram(user, ctx);
+    this._drawDiagram({
+      pos: [15, 35],
+      radius: 300,
+      data: user.getHoursByTypes(),
+      ctx
+    })
   }
 
-  static _drawHeader(user, ctx) {
+  static weekly_fill(user, canvas) {
+    const ctx = canvas.getContext('2d');
+    this._drawHeader(user, ctx, "недельная");
+    let [day, month, year] = ScheduleService.getTodayId().split(".");
+    let todayDate = new Date(year, month - 1, day);
+    let lastWeekDate = new Date(year, month - 1, day - 7);
+
+    this._drawDiagram({
+      pos: [15, 35],
+      radius: 300,
+      data: user.getHoursByTypes({
+        startDate: lastWeekDate,
+        endDate: todayDate
+      }),
+      ctx
+    });
+
+    /**
+     * TO-DO: интересные факты (на сколько процентов изменилось по сравнению с прошлой неделей)
+     */
+  }
+
+  static mood_fill(user, canvas, daysInPast = 7) {
+    let [day, month, year] = ScheduleService.getTodayId().split(".");
+    let todayDate = new Date(year, month - 1, day);
+    let lastWeekDate = new Date(year, month - 1, day - daysInPast);
+
+    const ctx = canvas.getContext('2d');
+    this._drawHeader(user, ctx, "настроение");
+    this._drawGraphic({
+      pos: [30,30],
+      pointWidth: 5,
+      pointConnected: true,
+      ctx,
+      data: user.getVibes({
+        startDate: lastWeekDate,
+        endDate: todayDate
+      })
+    });
+  }
+
+  static _drawHeader(user, ctx, description = "") {
     ctx.font = `25px arial`;
     ctx.fillStyle = `white`;
-    ctx.fillText(user.getName(), 15, 30);
+    let text = `${user.getName()}`;
+
+    if (description !== "") {
+      text += ` - ${description}`;
+    }
+
+    ctx.fillText(text, 15, 30);
   }
 
-  static _drawLifeBalanceDiagram(user, ctx) {
-    let radius = 200;
-    let pos = [15 + radius, 35 + radius];
+  static _drawGraphic({ pos, pointWidth, pointConnected, data, ctx }) {
+    let totalSize = this.SIZE[0] - pos[0] * 2;
+    let spaceBetween = totalSize / (data._totalDays - 1);
+
+    let i = 0;
+    let prevPosition = null;
+    for (let date in data) {
+      if (date.startsWith("_")) {
+        continue;
+      }
+
+      let mood = data[date];
+
+      if (mood === null) {
+        mood = 5;
+      }
+
+      let pointPosition = [pos[0] + i++ * spaceBetween, pos[1] - mood * 30 + 350];
+
+      ctx.fillStyle = `white`;
+      ctx.fillText(mood, pointPosition[0] - ctx.measureText(mood).width / 2, pointPosition[1] - 10);
+
+      let [day, month, year] = date.split(".");
+      let todayDate = new Date(year, month - 1, day);
+
+      let weekLetters = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
+      ctx.fillText(weekLetters[todayDate.getDay()], pointPosition[0] - ctx.measureText(weekLetters[todayDate.getDay()]).width / 2, pos[1] + 360);
+
+      let dateWithoutYear = date.split(".")[0] + "." + date.split(".")[1];
+      ctx.fillText(dateWithoutYear, pointPosition[0] - ctx.measureText(dateWithoutYear).width / 2, pos[1] + 360 + 30);
+
+      ctx.fillStyle = `red`;
+      ctx.beginPath();
+      ctx.arc(pointPosition[0], pointPosition[1], pointWidth, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (pointConnected && prevPosition !== null) {
+        ctx.strokeStyle = `red`;
+        ctx.beginPath();
+        ctx.moveTo(prevPosition[0], prevPosition[1]);
+        ctx.lineTo(pointPosition[0], pointPosition[1]);
+        ctx.stroke();
+      }
+
+      prevPosition = pointPosition;
+    }
+  }
+
+  static _drawDiagram({ pos, radius, data, ctx }) {
+    pos[0] += radius;
+    pos[1] += radius;
     let legendPos = [pos[0] - radius, pos[1] + radius + 25];
 
     ctx.strokeStyle = `white`;
     this._strokeArc(ctx, pos, radius, 0, Math.PI * 2);
 
-    let lifeBalanceData = user.getAllHoursByTypes();
     let startAngle = 0;
-    
-    for (let type in lifeBalanceData) {
+
+    for (let type in data) {
       if (type.startsWith("_")) {
         continue;
       }
 
-      let typeValue = lifeBalanceData[type];
+      let typeValue = data[type];
 
-      let cuttingAngle = 2 * Math.PI * typeValue / lifeBalanceData._total;
+      let cuttingAngle = 2 * Math.PI * typeValue / data._total;
       ctx.fillStyle = DoingTypes[DoingTypes.getByText(type)][2];
       this._fillArc(ctx, pos, radius, startAngle, startAngle + cuttingAngle);
 
@@ -73,17 +177,17 @@ module.exports = class ImageService {
     startAngle = 0;
 
     let i = 0;
-    for (let type in lifeBalanceData) {
+    for (let type in data) {
       if (type.startsWith("_")) {
         continue;
       }
 
-      let typeValue = lifeBalanceData[type];
-      let cuttingAngle = 2 * Math.PI * typeValue / lifeBalanceData._total;
+      let typeValue = data[type];
+      let cuttingAngle = 2 * Math.PI * typeValue / data._total;
 
-      let text = `${type}, ${Math.floor(typeValue / lifeBalanceData._total * 1000) / 10}%`;
+      let text = `${type}, ${Math.floor(typeValue / data._total * 1000) / 10}%`;
 
-      if (typeValue / lifeBalanceData._total >= 0.15) {
+      if (typeValue / data._total >= 0.15) {
         ctx.textAlign = `center`;
         ctx.textBaseline = `middle`;
         ctx.font = `30px arial`;
@@ -98,13 +202,13 @@ module.exports = class ImageService {
       ctx.textAlign = `left`;
       ctx.textBaseline = `bottom`;
       ctx.fillStyle = `white`;
-      ctx.fillText(`${DoingTypes[DoingTypes.getByText(type)][1]} - ${Math.floor(typeValue / lifeBalanceData._total * 1000) / 10}% (${typeValue}ч.)`, legendPos[0] + 25, legendPos[1] + i * 25 + 20);
+      ctx.fillText(`${DoingTypes[DoingTypes.getByText(type)][1]} - ${Math.floor(typeValue / data._total * 1000) / 10}% (${typeValue}ч.)`, legendPos[0] + 25, legendPos[1] + i * 25 + 20);
 
       i++;
       startAngle += cuttingAngle;
     }
 
-    ctx.fillText(`Всего: ${lifeBalanceData._total}ч. / Не учтено: ${user.getUnaccountedTime()}ч.`, legendPos[0], legendPos[1] + i * 25 + 20);
+    ctx.fillText(`Всего: ${data._total}ч. / Не учтено: ${data._unaccounted}ч.`, legendPos[0], legendPos[1] + i * 25 + 20);
   }
 
   static _drawLine(ctx, startPos, endPos) {

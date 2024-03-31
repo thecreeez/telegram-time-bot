@@ -7,6 +7,10 @@ module.exports = class DoingTypes {
   static SELF_STUDY = ["self_study", "саморазвитие", `rgb(117,2,199)`];
 
   static getByText(text) {
+    if (text === undefined) {
+      return false;
+    }
+
     for (let field in this) {
       if (this[field].indexOf(text.toLowerCase()) !== -1)
         return field;

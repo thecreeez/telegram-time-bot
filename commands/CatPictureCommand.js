@@ -9,6 +9,7 @@ module.exports = class CatPictureCommand extends Command {
     let randomCatLink = await RandomCatAPI.getLink();
     
     if (randomCatLink === null) {
+      user.sendMessage(`Не удалось отправить котят, чето барахлит, попробуй еще!`)
       return;
     }
 
