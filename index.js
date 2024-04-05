@@ -4,13 +4,6 @@ const CommandHandler = require("./classes/CommandHandler.js");
 
 require("dotenv").config();
 
-const message = `Привет (или не привет, это стандартное сообщение), для того чтобы отметить время напиши следующим образом: 
-[ВРЕМЯ] [ТИП] [НАЗВАНИЕ]
-
-К примеру если я хочу отметить 3 часа работы я напишу: "3 работа РАБОТАЛ В ШАХТЕ"
-Типы занятий:
-`;
-
 async function start() {
   await CommandHandler.init();
   const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
